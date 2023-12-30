@@ -156,7 +156,7 @@ class stsgcl(nn.Module):
         assert module_type in {'sharing', 'individual'}
 
         if module_type == 'sharing':
-            self.layer=sthgcn_layer_sharing(
+            self.layer = sthgcn_layer_sharing(
                 T, num_of_vertices, num_of_features, filters,
                 activation, temporal_emb, spatial_emb
             )
@@ -165,6 +165,7 @@ class stsgcl(nn.Module):
                 T, num_of_vertices, num_of_features, filters,
                 activation, temporal_emb, spatial_emb
             )
+
     def forward(self, data, adj):
         '''
 
@@ -173,6 +174,7 @@ class stsgcl(nn.Module):
         :return: output shape is (B, T-2, N, C')
         '''
         return self.layer(data, adj)
+
 
 class sthgcn_layer_individual(nn.Module):
     def __init__(self, T, num_of_vertices, num_of_features, filters,
@@ -286,8 +288,9 @@ class sthgcn_layer_sharing(nn.Module):
         # shape is (B, T - 2, N, C)
         return t.permute(2, 1, 0, 3)
 
+
 class output_layer(nn.Module):
-    def __init__(self,num_of_vertices, input_length, num_of_features,
+    def __init__(self, num_of_vertices, input_length, num_of_features,
                  num_of_filters=128, predict_length=12):
         '''
 
@@ -303,29 +306,31 @@ class output_layer(nn.Module):
         self.num_of_features = num_of_features
         self.num_of_filters = num_of_filters
         self.predict_length = predict_length
-        self.layer1=nn.Linear(num_of_features*input_length, num_of_filters)
-        self.layer2=nn.Linear(num_of_filters, predict_length)
-    def forward(self,data):
+        self.layer1 = nn.Linear(num_of_features * input_length, num_of_filters)
+        self.layer2 = nn.Linear(num_of_filters, predict_length)
+
+    def forward(self, data):
         '''
         :param data: tensor, shape is (B, T, N, C)
         :return: output shape is (B, T', N)
         '''
-        #data shape is (B, N, T, C)
-        data=data.permute(0,2,1,3)
+        # data shape is (B, N, T, C)
+        data = data.permute(0, 2, 1, 3)
 
         # data shape is (B, N, T * C)
-        data=data.reshape(-1,self.num_of_vertices,self.input_length*self.num_of_features)
+        data = data.reshape(-1, self.num_of_vertices, self.input_length * self.num_of_features)
 
         # data shape is (B, N, C')
-        data=torch.relu(self.layer1(data))
+        data = torch.relu(self.layer1(data))
 
         # data shape is (B, N, T')
-        data=self.layer2(data)
+        data = self.layer2(data)
 
         # data shape is (B, T', N)
-        data=data.permute(0,2,1)
+        data = data.permute(0, 2, 1)
 
         return data
+
 
 def huber_loss(data, label, rho=1):
     '''
@@ -340,6 +345,7 @@ def huber_loss(data, label, rho=1):
     loss.requires_grad_()
     return loss
 
+
 def weighted_loss(data, label, input_length, rho=1.0):
     '''
     :param data: tensor,shape is (B, T', N)
@@ -353,9 +359,9 @@ def weighted_loss(data, label, input_length, rho=1.0):
     weight = torch.unsqueeze(
         torch.unsqueeze(
             torch.flip(
-                torch.arange(1,input_length + 1), dims=[0]
-            ),dim=0
-        ),dim=-1
+                torch.arange(1, input_length + 1), dims=[0]
+            ), dim=0
+        ), dim=-1
     )
 
     agg_loss = torch.mul(
@@ -364,17 +370,18 @@ def weighted_loss(data, label, input_length, rho=1.0):
     )
     return agg_loss
 
+
 class stsgcn(nn.Module):
-    def __init__(self,input_length, num_of_vertices, num_of_features,
-           filter_list, module_type, activation,
-           use_mask=True, mask_init_value=None,
-           temporal_emb=True, spatial_emb=True, rho=1, predict_length=12):
+    def __init__(self, input_length, num_of_vertices, num_of_features,
+                 filter_list, module_type, activation,
+                 use_mask=True, mask_init_value=None,
+                 temporal_emb=True, spatial_emb=True, rho=1, predict_length=12):
         '''
         stsgcn
         :param input_length: int T
         :param num_of_vertices: int, N
         :param num_of_features: int, C
-        :param filter_list: list[int], list of C'
+        :param filter_list: list[int][int], list of C'
         :param module_type: str, {'sharing', 'individual'}
         :param activation: str, {'GLU', 'relu'}
         :param use_mask: bool
@@ -388,22 +395,23 @@ class stsgcn(nn.Module):
 
         self.filter_list = filter_list
         self.predict_length = predict_length
-        T=[input_length - 2 * i for i in range(len(filter_list))]
-        features=[filter_list[i] for i in range(len(filter_list)-1)]
-        features.insert(0,num_of_features)
+        T = [input_length - 2 * i for i in range(len(filter_list))]
+        features = [filter_list[i][-1] for i in range(len(filter_list) - 1)]
+        features.insert(0, num_of_features)
 
-        self.stsgcl=nn.ModuleList([stsgcl(T[i], num_of_vertices, features[i],
-           filter_list, module_type, activation,temporal_emb,spatial_emb) for i in range(len(filter_list))])
-        self.output=output_layer(num_of_vertices,input_length,num_of_features,128,1)
+        self.stsgcl = nn.ModuleList([stsgcl(T[i], num_of_vertices, features[i],
+                                            filter_list, module_type, activation, temporal_emb, spatial_emb) for i in
+                                     range(len(filter_list))])
+        self.output = output_layer(num_of_vertices, input_length, num_of_features, 128, 1)
 
         # mask shape is (3N, 3N)
         if use_mask:
             if mask_init_value is None:
                 raise ValueError("mask init value is None!")
             self.mask = torch.empty(3 * num_of_vertices, 3 * num_of_vertices)
-            torch.nn.init.xavier_uniform_(self.mask, gain= mask_init_value)
+            torch.nn.init.xavier_uniform_(self.mask, gain=mask_init_value)
 
-    def forward(self,data, adj, label):
+    def forward(self, data, adj, label):
         '''
         :param data: tensor, shape is (B, T, N, C)
         :param adj: tensor, shape is (3N, 3N)
@@ -417,7 +425,7 @@ class stsgcn(nn.Module):
 
         # shape is (B, 1, N, C')
         for layer in self.stsgcl:
-            data=layer(data,adj)
+            data = layer(data, adj)
 
         # shape is (B, 1, N)
         need_concat = []
@@ -460,10 +468,9 @@ if __name__ == '__main__':
     output = stsgcm(data, adj)
     print(output.shape)
 
-    #test huber_loss and weighted_loss
+    # test huber_loss and weighted_loss
     data = torch.rand(3 * num_of_vertices, 5, num_of_features)
     label = torch.rand(3 * num_of_vertices, 5, num_of_features)
-    #loss = huber_loss(data, label)
-    loss=weighted_loss(data, label,5,0.5)
+    # loss = huber_loss(data, label)
+    loss = weighted_loss(data, label, 5, 0.5)
     print(loss.shape)
-
