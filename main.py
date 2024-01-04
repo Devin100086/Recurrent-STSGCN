@@ -114,7 +114,7 @@ def training(epochs, config):
             loss=criterion(output, y)
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(net.parameters(), 5.0)
+            torch.nn.utils.clip_grad_norm_(net.parameters(), 20.0)
             optimizer.step()
 
             tmae = utils.masked_mae(output, y ).item()
@@ -136,18 +136,19 @@ def training(epochs, config):
         valid_mape = []
         valid_rmse = []
         net.eval()
-        for idx, data in enumerate(val_loader):
-            x,y = data
-            x,y = x.to(ctx), y.to(ctx)
-            output = net(x)
+        with torch.no_grad():
+            for idx, data in enumerate(val_loader):
+                x,y = data
+                x= x.to(ctx)
+                output = net(x).cpu()
 
-            tmae = utils.masked_mae(output, y ).item()
-            tmape = utils.masked_mape(output, y , 0.0).item()
-            trmse = utils.masked_rmse(output, y , 0.0).item()
+                tmae = utils.masked_mae(output, y ).item()
+                tmape = utils.masked_mape(output, y , 0.0).item()
+                trmse = utils.masked_rmse(output, y , 0.0).item()
 
-            valid_mae.append(tmae)
-            valid_mape.append(tmape)
-            valid_rmse.append(trmse)
+                valid_mae.append(tmae)
+                valid_mape.append(tmape)
+                valid_rmse.append(trmse)
 
         mtrain_loss = np.mean(train_loss)
         mtrain_mae = np.mean(train_mae)
@@ -185,18 +186,19 @@ def training(epochs, config):
     test_mape = []
     test_rmse = []
     net.eval()
-    for idx, data in enumerate(test_loader):
-        x,y = data
-        x,y = x.to(ctx), y.to(ctx)
-        output = net(x)
+    with torch.no_grad():
+        for idx, data in enumerate(test_loader):
+            x,y = data
+            x = x.to(ctx)
+            output = net(x).cpu()
 
-        tmae = utils.masked_mae(output, y ).item()
-        tmape = utils.masked_mape(output, y , 0.0).item()
-        trmse = utils.masked_rmse(output, y , 0.0).item()
+            tmae = utils.masked_mae(output, y ).item()
+            tmape = utils.masked_mape(output, y , 0.0).item()
+            trmse = utils.masked_rmse(output, y , 0.0).item()
 
-        test_mae.append(tmae)
-        test_mape.append(tmape)
-        test_rmse.append(trmse)
+            test_mae.append(tmae)
+            test_mape.append(tmape)
+            test_rmse.append(trmse)
 
     mtest_mae = np.mean(test_mae)
     mtest_mape = np.mean(test_mape)
