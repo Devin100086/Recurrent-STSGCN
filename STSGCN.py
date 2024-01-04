@@ -409,6 +409,7 @@ class stsgcn(nn.Module):
                 raise ValueError("mask init value is None!")
             self.mask = torch.empty(3 * num_of_vertices, 3 * num_of_vertices)
             self.mask = mask_init_value
+            self.mask=nn.Parameter(self.mask)
 
     def forward(self, data):
         '''
