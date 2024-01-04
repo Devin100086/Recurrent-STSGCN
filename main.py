@@ -198,15 +198,13 @@ def training(epochs, config):
         test_mape.append(tmape)
         test_rmse.append(trmse)
 
-    mtrain_loss = np.mean(train_loss)
-    mtrain_mae = np.mean(train_mae)
-    mtrain_mape = np.mean(train_mape)
-    mtrain_rmse = np.mean(train_rmse)
+    mtest_mae = np.mean(test_mae)
+    mtest_mape = np.mean(test_mape)
+    mtest_rmse = np.mean(test_rmse)
 
-    mvalid_loss = np.mean(valid_mae)
-    mvalid_mape = np.mean(valid_mape)
-    mvalid_rmse = np.mean(valid_rmse)
-
+    print(f"The result of the Test is:\n"
+          f"Test MAE: {mtest_mae}, "
+          f"Test MAPE: {mtest_mape}, Test RMSE: {mtest_rmse}")
 
 
 if args.test:
