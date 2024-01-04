@@ -1,7 +1,7 @@
 import time
 import json
 import argparse
-
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,7 +10,7 @@ import hiddenlayer as h
 import torch.nn.functional as F
 from torchviz import make_dot
 from torch.utils.tensorboard import SummaryWriter
-
+import seaborn as sns
 import utils
 from utils import (construct_model, generate_data)
 
@@ -40,8 +40,8 @@ elif isinstance(config['ctx'], int):
     ctx = torch.device("cuda:" + str(config['ctx']))
 
 loaders = []
-true_values = []
-for idx, (x, y) in enumerate(generate_data(graph_signal_matrix_filename)):
+true_values = {"mean":[], "std": []}
+for idx, (x, y, mean, std) in enumerate(generate_data(graph_signal_matrix_filename)):
     if args.test:
         x = x[: 100]
         y = y[: 100]
@@ -49,12 +49,19 @@ for idx, (x, y) in enumerate(generate_data(graph_signal_matrix_filename)):
     print(x.shape, y.shape)
     x = torch.from_numpy(x).float()
     y = torch.from_numpy(y).float()
-
-    loaders.append(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(x, y),
+    if idx == 0:
+        loaders.append(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(x, y),
                                                batch_size=batch_size, shuffle=True))
+    else:
+        loaders.append(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(x, y),
+                                                   batch_size=batch_size, shuffle=False))
+    true_values["mean"].append(mean)
+    true_values["std"].append(std)
     training_samples = x.shape[0]
 
 train_loader, val_loader, test_loader = loaders
+train_mean, val_mean, test_mean = true_values["mean"]
+train_std, val_std, test_std = true_values["std"]
 
 global_epoch = 1
 global_train_steps = training_samples // batch_size + 1
@@ -87,7 +94,7 @@ if args.plot:
 def training(epochs, config):
 
     global global_epoch, best_params
-    writer = SummaryWriter('./log/PEMS03', flush_secs=20)
+    writer = SummaryWriter('./log/PEMS04', flush_secs=5)
     lowest_val_loss = 1e6
     criterion = torch.nn.SmoothL1Loss()
     base_lr = config['learning_rate']
@@ -111,6 +118,7 @@ def training(epochs, config):
             x, y = data
             x, y = x.to(ctx), y.to(ctx)
             output = net(x)
+            output=output * train_std + train_mean
             loss=criterion(output, y)
             optimizer.zero_grad()
             loss.backward()
@@ -141,7 +149,7 @@ def training(epochs, config):
                 x,y = data
                 x= x.to(ctx)
                 output = net(x).cpu()
-
+                output = output * val_std + val_mean
                 tmae = utils.masked_mae(output, y ).item()
                 tmape = utils.masked_mape(output, y , 0.0).item()
                 trmse = utils.masked_rmse(output, y , 0.0).item()
@@ -176,7 +184,7 @@ def training(epochs, config):
         if mvalid_loss <= lowest_val_loss:
             lowest_val_loss = mvalid_loss
             best_params = net.state_dict()
-            torch.save(net.state_dict(), 'save/PEMS03_exp_{}_{}.pth'.format(exp, str(round(lowest_val_loss, 2))))
+            torch.save(net.state_dict(), 'save/PEMS04/PEMS04_exp_{}_{}.pth'.format(exp, str(round(lowest_val_loss, 2))))
             exp+=1
 
         global_epoch += 1
@@ -191,7 +199,7 @@ def training(epochs, config):
             x,y = data
             x = x.to(ctx)
             output = net(x).cpu()
-
+            output = output * test_std + test_mean
             tmae = utils.masked_mae(output, y ).item()
             tmape = utils.masked_mape(output, y , 0.0).item()
             trmse = utils.masked_rmse(output, y , 0.0).item()
@@ -208,6 +216,11 @@ def training(epochs, config):
           f"Test MAE: {mtest_mae}, "
           f"Test MAPE: {mtest_mape}, Test RMSE: {mtest_rmse}")
 
+    #热力图
+    mask = net.mask.detach().cpu().numpy()
+    plt.subplots(figsize=(20, 20))  # 设置画面大小
+    sns.heatmap(mask[0:10, 0:10], annot=True, vmax=1, square=True, cmap="RdBu")
+    plt.show()
 
 if args.test:
     epochs = 5

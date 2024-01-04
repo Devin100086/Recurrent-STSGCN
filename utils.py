@@ -150,11 +150,11 @@ def generate_from_data(data, length, transformer):
         if transformer:
             x = transformer(x)
             y = transformer(y)
-        if mean is None:
-            mean = x.mean()
-        if std is None:
-            std = x.std()
-        yield (x - mean) / std, y
+
+        mean = x.mean()
+        std = x.std()
+
+        yield (x - mean) / std, y , mean , std
 def generate_data(graph_signal_matrix_filename, transformer=None):
     '''
 
