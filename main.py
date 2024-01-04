@@ -174,8 +174,8 @@ def training(epochs, config):
 
         if mvalid_loss <= lowest_val_loss:
             lowest_val_loss = mvalid_loss
-            best_params = model.state_dict()
-            torch.save(net.state_dict(), 'save/exp_{}_{}.pth'.format(exp, str(round(lowest_val_loss, 2))))
+            best_params = net.state_dict()
+            torch.save(net.state_dict(), 'save/PEMS03_exp_{}_{}.pth'.format(exp, str(round(lowest_val_loss, 2))))
             exp+=1
 
         global_epoch += 1
